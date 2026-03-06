@@ -1,4 +1,4 @@
-PROJECT = rabbit_test
+PROJECT = tuna
 PROJECT_DESCRIPTION = Application for testing RabbitMQ cluster
 PROJECT_VERSION = 0.1.0
 

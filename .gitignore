@@ -1,7 +1,8 @@
 .erlang.mk
 .idea
 _docker
+.docker
 _rel
 deps
 ebin
-rabbit_test.d
+tuna.d

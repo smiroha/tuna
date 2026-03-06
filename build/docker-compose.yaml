@@ -2,6 +2,7 @@ x-rabbitmq: &rabbitmq
   build:
     context: $PWD
     dockerfile: build/Dockerfile.rabbitmq
+  restart: unless-stopped
   deploy:
     resources:
       reservations:
@@ -68,11 +69,85 @@ services:
       - rmq02.local
       - rmq03.local
     ports:
-      - '5672:5672'
-      - "15672:15672"
+      - "${RMQ_AMQP_PORT:-5672}:5672"
+      - "${RMQ_MGMT_PORT:-15672}:15672"
     configs:
       - source: haproxy.cfg
         target: /usr/local/etc/haproxy/haproxy.cfg
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    depends_on:
+      - rmq01.local
+      - rmq02.local
+      - rmq03.local
+      - pushgateway
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  pushgateway:
+    image: prom/pushgateway:v1.10.0
+    container_name: pushgateway
+    ports:
+      - "9091:9091"
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_DEFAULT_THEME=light
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  pumba:
+    image: ghcr.io/alexei-led/pumba:latest
+    container_name: pumba
+    network_mode: "service:rmq-lb"
+    depends_on:
+      - rmq01.local
+      - rmq02.local
+      - rmq03.local
+      - rmq-lb
+    command: >
+      --log-level=info
+      --random
+      --interval 45s
+      kill --signal SIGTERM re2:rmq0[1-3]\.local
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - ${DOCKER_HOST_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    restart: always
+
+  pumba_netem:
+    image: ghcr.io/alexei-led/pumba:latest
+    container_name: pumba_netem
+    cap_add:
+      - NET_ADMIN
+    network_mode: "container:rmq-lb"
+    depends_on:
+      - rmq-lb
+    command: >
+      --log-level=info
+      --random
+      --interval 45s
+      netem --duration 30s delay --time 200 --jitter 50 --distribution normal re2:rmq0[1-3]\.local
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - ${DOCKER_HOST_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    restart: always
 
 configs:
   rabbitmq.conf:
@@ -83,6 +158,8 @@ configs:
       cluster_formation.classic_config.nodes.3 = rabbit@rmq03.local
       cluster_partition_handling = pause_minority
       management.load_definitions = /etc/rabbitmq/definitions
+      prometheus.tcp.port = 15692
+      prometheus.return_per_object_metrics = true
 
   rabbitmq-definitions-common:
     content: |-
