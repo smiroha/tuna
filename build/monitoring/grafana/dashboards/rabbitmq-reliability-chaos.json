@@ -1,0 +1,75 @@
+{
+  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "msgps", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum(rate(tuna_published_total[1m]))", "legendFormat": "publish rate", "refId": "A"},
+        {"expr": "sum(rate(tuna_consumer_ack_total[1m]))", "legendFormat": "consumer ack rate", "refId": "B"}
+      ],
+      "title": "End-to-End Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum(tuna_publish_confirm_ack_total)", "legendFormat": "publish confirm ack", "refId": "A"},
+        {"expr": "sum(tuna_publish_confirm_nack_total)", "legendFormat": "publish confirm nack", "refId": "B"},
+        {"expr": "sum(tuna_publish_return_total)", "legendFormat": "publish return", "refId": "C"}
+      ],
+      "title": "Publisher Confirms",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by (queue_type) (tuna_consumer_gap_total)", "legendFormat": "{{queue_type}} gaps", "refId": "A"},
+        {"expr": "sum by (queue_type) (tuna_consumer_duplicate_total)", "legendFormat": "{{queue_type}} duplicates", "refId": "B"}
+      ],
+      "title": "Reliability Violations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by (queue_type) (rate(tuna_consumer_redelivered_total[1m]))", "legendFormat": "{{queue_type}} redelivered/s", "refId": "A"},
+        {"expr": "sum(tuna_publisher_inflight)", "legendFormat": "publisher inflight", "refId": "B"}
+      ],
+      "title": "Recovery Signals",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["rabbitmq", "reliability", "chaos"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "RabbitMQ Reliability (Classic vs Quorum)",
+  "uid": "rabbitmq-reliability-chaos",
+  "version": 1,
+  "weekStart": ""
+}

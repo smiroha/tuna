@@ -1,0 +1,2 @@
+-define(APP, tuna).
+-define(EXCHANGE, <<"rb_exchange">>).

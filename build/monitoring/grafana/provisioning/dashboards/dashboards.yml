@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: rabbitmq-benchmarks
+    orgId: 1
+    folder: RabbitMQ Benchmark
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
