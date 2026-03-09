@@ -64,8 +64,8 @@ terminate(Reason, #{name := Name}) ->
 %% @private
 connect(State = #{name := Name}) ->
 	ConnProps = [{<<"connection_name">>, longstr, atom_to_binary(Name)}],
-	Host = application:get_env(?APP, amqp_host, "localhost"),
-	Port = application:get_env(?APP, amqp_port, 5672),
+	Host = tuna_config:amqp_host(),
+	Port = tuna_config:amqp_port(),
 	AmqpParams = #amqp_params_network{host = Host, port = Port, client_properties = ConnProps},
 	{ok, AMQPConn} = amqp_connection:start(AmqpParams),
 	{ok, AMQPChan} = amqp_connection:open_channel(AMQPConn),

@@ -61,12 +61,9 @@ handle_info({#'basic.deliver'{delivery_tag = DeliveryTag, redelivered = Redelive
 	tuna_metrics:inc(consumer_ack_total, [{queue_type, QueueType}, {consumer, Name}]),
 	if Seq rem 1000 =:= 0 -> logger:info("consumer:~p type:~p from:~p reached seq:~p", [Name, QueueType, From, Seq]); true -> ok end,
 	{noreply, State0};
-handle_info(#'basic.consume_ok'{}, State) ->
-	{noreply, State};
-handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_conn_mref := MRef}) ->
-	{stop, {died_conn, Reason}, State};
-handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_chan_mref := MRef}) ->
-	{stop, {died_chan, Reason}, State};
+handle_info(#'basic.consume_ok'{}, State) -> {noreply, State};
+handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_conn_mref := MRef}) -> {stop, {died_conn, Reason}, State};
+handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_chan_mref := MRef}) -> {stop, {died_chan, Reason}, State};
 handle_info(_, State) ->
 	{noreply, State}.
 
@@ -79,8 +76,8 @@ terminate(Reason, #{name := Name}) ->
 %% @private
 connect(State = #{name := Name}) ->
 	ConnProps = [{<<"connection_name">>, longstr, atom_to_binary(Name)}],
-	Host = application:get_env(?APP, amqp_host, "localhost"),
-	Port = application:get_env(?APP, amqp_port, 5672),
+	Host = tuna_config:amqp_host(),
+	Port = tuna_config:amqp_port(),
 	AmqpParams = #amqp_params_network{host = Host, port = Port, client_properties = ConnProps},
 	{ok, AMQPConn} = amqp_connection:start(AmqpParams),
 	{ok, AMQPChan} = amqp_connection:open_channel(AMQPConn),

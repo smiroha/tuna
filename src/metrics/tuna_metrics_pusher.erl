@@ -1,5 +1,7 @@
 -module(tuna_metrics_pusher).
 
+-include("tuna.hrl").
+
 -behaviour(gen_server).
 
 -export([
@@ -16,9 +18,8 @@ start_link() ->
 
 init([]) ->
 	ok = tuna_metrics:init(),
-	{ok, _} = application:ensure_all_started(inets),
-	IntervalMs = application:get_env(tuna, metrics_push_interval_ms, 5000),
-	PushUrl = application:get_env(tuna, pushgateway_url, default_push_url()),
+	IntervalMs = tuna_config:metrics_interval(),
+	PushUrl = tuna_config:metrics_url(),
 	timer:send_after(1000, push),
 	{ok, #{interval_ms => IntervalMs, push_url => PushUrl}}.
 
@@ -43,7 +44,3 @@ handle_info(_, State) ->
 
 terminate(_, _) ->
 	ok.
-
-default_push_url() ->
-	Instance = atom_to_list(node()),
-	"http://localhost:9091/metrics/job/tuna/instance/" ++ Instance.

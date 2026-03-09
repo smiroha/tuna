@@ -1,9 +1,9 @@
 {application, tuna, [
     {description, "Application for testing RabbitMQ cluster"},
     {vsn, "0.1.0"},
-    {modules, [tuna_app, tuna_super_sup, tuna_publisher, tuna_classic_consumer, tuna_quorum_consumer, tuna_metrics, tuna_metrics_pusher, tuna_seq_srv]},
+    {modules, [tuna_app, tuna_super_sup, tuna_publisher, tuna_classic_consumer, tuna_quorum_consumer, tuna_metrics, tuna_metrics_pusher, tuna_seq_srv, tuna_config]},
     {registered, [tuna_super_sup, tuna_metrics_pusher, tuna_seq_srv]},
-    {applications, [kernel, stdlib, amqp_client, rabbit_common]},
+    {applications, [kernel, stdlib, inets, amqp_client, rabbit_common]},
     {mod, {tuna_app, []}},
     {env, []}
 ]}.

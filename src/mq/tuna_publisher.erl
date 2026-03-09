@@ -21,8 +21,8 @@ init([Name]) ->
 	_ = process_flag(trap_exit, true),
 	State = #{
 		name => Name,
-		publish_interval_ms => application:get_env(tuna, publish_interval_ms, 25),
-		publish_batch_size => application:get_env(tuna, publish_batch_size, 1),
+		publish_interval_ms => tuna_config:publisher_interval(),
+		publish_batch_size => tuna_config:publisher_size(),
 		next_delivery_tag => 1,
 		inflight => #{}
 	},
@@ -76,8 +76,8 @@ terminate(Reason, #{name := Name}) ->
 %% @private
 connect(State = #{name := Name}) ->
 	ConnProps = [{<<"connection_name">>, longstr, atom_to_binary(Name)}],
-	Host = application:get_env(?APP, amqp_host, "localhost"),
-	Port = application:get_env(?APP, amqp_port, 5672),
+	Host = tuna_config:amqp_host(),
+	Port = tuna_config:amqp_port(),
 	AmqpParams = #amqp_params_network{host = Host, port = Port, client_properties = ConnProps},
 	{ok, AMQPConn} = amqp_connection:start(AmqpParams),
 	{ok, AMQPChan} = amqp_connection:open_channel(AMQPConn),
