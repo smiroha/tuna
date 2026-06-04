@@ -49,12 +49,12 @@ handle_info(publish_tick, State0 = #{publish_batch_size := BatchSize, publish_in
 	timer:send_after(IntervalMs, publish_tick),
 	{noreply, State1};
 handle_info(#'basic.ack'{delivery_tag = DeliveryTag, multiple = Multiple}, State = #{name := Name, inflight := Inflight0}) ->
-	{Acked, Inflight1} = settle_confirms(DeliveryTag, Multiple, Inflight0),
+	{Acked, Inflight1} = tuna_confirm:settle(DeliveryTag, Multiple, Inflight0),
 	tuna_metrics:add(publish_confirm_ack_total, [{publisher, Name}], Acked),
 	tuna_metrics:set(publisher_inflight, [{publisher, Name}], maps:size(Inflight1)),
 	{noreply, State#{inflight => Inflight1}};
 handle_info(#'basic.nack'{delivery_tag = DeliveryTag, multiple = Multiple}, State = #{name := Name, inflight := Inflight0}) ->
-	{Nacked, Inflight1} = settle_confirms(DeliveryTag, Multiple, Inflight0),
+	{Nacked, Inflight1} = tuna_confirm:settle(DeliveryTag, Multiple, Inflight0),
 	tuna_metrics:add(publish_confirm_nack_total, [{publisher, Name}], Nacked),
 	tuna_metrics:set(publisher_inflight, [{publisher, Name}], maps:size(Inflight1)),
 	{noreply, State#{inflight => Inflight1}};
@@ -62,8 +62,10 @@ handle_info({#'basic.return'{}, _Msg}, State = #{name := Name}) ->
 	tuna_metrics:inc(publish_return_total, [{publisher, Name}]),
 	{noreply, State};
 handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_conn_mref := MRef}) ->
+	tuna_metrics:inc(amqp_down_total, lifecycle_labels(publisher, maps:get(name, State), conn)),
 	{stop, {died_conn, Reason}, State};
 handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_chan_mref := MRef}) ->
+	tuna_metrics:inc(amqp_down_total, lifecycle_labels(publisher, maps:get(name, State), chan)),
 	{stop, {died_chan, Reason}, State};
 handle_info(_, State) ->
 	{noreply, State}.
@@ -75,18 +77,12 @@ terminate(Reason, #{name := Name}) ->
 
 %% @private
 connect(State = #{name := Name}) ->
-	ConnProps = [{<<"connection_name">>, longstr, atom_to_binary(Name)}],
-	Host = tuna_config:amqp_host(),
-	Port = tuna_config:amqp_port(),
-	AmqpParams = #amqp_params_network{host = Host, port = Port, client_properties = ConnProps},
-	{ok, AMQPConn} = amqp_connection:start(AmqpParams),
-	{ok, AMQPChan} = amqp_connection:open_channel(AMQPConn),
-	AMQPConnMRef = erlang:monitor(process, AMQPConn),
-	AMQPChanMRef = erlang:monitor(process, AMQPChan),
-	Declare = #'exchange.declare'{exchange = ?EXCHANGE, type = <<"topic">>, durable = true},
+	{ok, #{conn := AMQPConn, chan := AMQPChan, conn_mref := AMQPConnMRef, chan_mref := AMQPChanMRef}} =
+		tuna_amqp:open(Name),
 	Confirm = #'confirm.select'{},
-	#'exchange.declare_ok'{} = amqp_channel:call(AMQPChan, Declare),
+	ok = tuna_amqp:declare_exchange(AMQPChan),
 	#'confirm.select_ok'{} = amqp_channel:call(AMQPChan, Confirm),
+	tuna_metrics:inc(amqp_connect_total, lifecycle_labels(publisher, Name, conn)),
 	tuna_metrics:set(publisher_inflight, [{publisher, Name}], 0),
 	{ok, State#{
 		amqp_conn => AMQPConn,
@@ -116,18 +112,5 @@ publish_one(State0 = #{
 	State0#{next_delivery_tag => Tag0 + 1, inflight => Inflight1}.
 
 %% @private
-settle_confirms(DeliveryTag, true, Inflight0) ->
-	maps:fold(
-		fun(Tag, _Seq, {Cnt, Acc}) when Tag =< DeliveryTag ->
-			{Cnt + 1, Acc};
-		   (Tag, Seq, {Cnt, Acc}) ->
-			{Cnt, maps:put(Tag, Seq, Acc)}
-		end,
-		{0, #{}},
-		Inflight0
-	);
-settle_confirms(DeliveryTag, false, Inflight0) ->
-	case maps:take(DeliveryTag, Inflight0) of
-		{_Seq, Inflight1} -> {1, Inflight1};
-		error -> {0, Inflight0}
-	end.
+lifecycle_labels(Role, Name, Target) ->
+	[{role, Role}, {worker, Name}, {target, Target}].

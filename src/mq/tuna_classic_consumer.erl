@@ -49,8 +49,12 @@ handle_info({#'basic.deliver'{delivery_tag = DeliveryTag, redelivered = Redelive
 	if Seq rem 1000 =:= 0 -> logger:info("consumer:~p type:~p from:~p reached seq:~p", [Name, QueueType, From, Seq]); true -> ok end,
 	{noreply, State0};
 handle_info(#'basic.consume_ok'{}, State) -> {noreply, State};
-handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_conn_mref := MRef}) -> {stop, {died_conn, Reason}, State};
-handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{amqp_chan_mref := MRef}) -> {stop, {died_chan, Reason}, State};
+handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{name := Name, amqp_conn_mref := MRef}) ->
+	tuna_metrics:inc(amqp_down_total, lifecycle_labels(Name, conn)),
+	{stop, {died_conn, Reason}, State};
+handle_info({'DOWN', MRef, _, _Pid, Reason}, State = #{name := Name, amqp_chan_mref := MRef}) ->
+	tuna_metrics:inc(amqp_down_total, lifecycle_labels(Name, chan)),
+	{stop, {died_chan, Reason}, State};
 handle_info(Msg, State = #{name := Name}) ->
 	logger:warning("consumer:~p handle unexpected msg:~p", [Name, Msg]),
 	{noreply, State}.
@@ -63,21 +67,11 @@ terminate(Reason, #{name := Name}) ->
 
 %% @private
 connect(State = #{name := Name}) ->
-	ConnProps = [{<<"connection_name">>, longstr, atom_to_binary(Name)}],
-	Host = tuna_config:amqp_host(),
-	Port = tuna_config:amqp_port(),
-	AmqpParams = #amqp_params_network{host = Host, port = Port, client_properties = ConnProps},
-	{ok, AMQPConn} = amqp_connection:start(AmqpParams),
-	{ok, AMQPChan} = amqp_connection:open_channel(AMQPConn),
-	AMQPConnMRef = erlang:monitor(process, AMQPConn),
-	AMQPChanMRef = erlang:monitor(process, AMQPChan),
-	Queue = <<"rb_classic_queue_", (atom_to_binary(Name))/binary>>,
-	Declare = #'queue.declare'{queue = Queue, durable = true},
-	Bind = #'queue.bind'{queue = Queue, exchange = ?EXCHANGE},
-	Qos = #'basic.qos'{prefetch_count = 250},
-	Consume = #'basic.consume'{queue = Queue, no_ack = false},
-	#'basic.qos_ok'{} = amqp_channel:call(AMQPChan, Qos),
-	#'queue.declare_ok'{} = amqp_channel:call(AMQPChan, Declare),
-	#'queue.bind_ok'{} = amqp_channel:call(AMQPChan, Bind),
-	#'basic.consume_ok'{} = amqp_channel:call(AMQPChan, Consume),
+	{ok, #{chan := AMQPChan, conn_mref := AMQPConnMRef, chan_mref := AMQPChanMRef}} = tuna_amqp:open(Name),
+	ok = tuna_amqp:consume(AMQPChan, classic, Name),
+	tuna_metrics:inc(amqp_connect_total, lifecycle_labels(Name, conn)),
 	{ok, State#{channel => AMQPChan, amqp_conn_mref => AMQPConnMRef, amqp_chan_mref => AMQPChanMRef}}.
+
+%% @private
+lifecycle_labels(Name, Target) ->
+	[{role, classic_consumer}, {worker, Name}, {target, Target}].

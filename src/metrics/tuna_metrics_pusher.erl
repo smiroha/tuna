@@ -17,10 +17,9 @@ start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-	ok = tuna_metrics:init(),
 	IntervalMs = tuna_config:metrics_interval(),
 	PushUrl = tuna_config:metrics_url(),
-	timer:send_after(1000, push),
+	{ok, _TRef} = timer:send_after(1000, push),
 	{ok, #{interval_ms => IntervalMs, push_url => PushUrl}}.
 
 handle_call(_, _, State) ->

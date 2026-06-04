@@ -60,5 +60,35 @@ gmake ; _rel/tuna_release/bin/tuna_release console
 - `consumer gaps/duplicates/redelivered`
 - `publisher inflight`
 
+### Runtime config
+The local release reads `config/sys.config`.
+
+```erlang
+{tuna, [
+    {amqp, [
+        {host, "localhost"},
+        {port, 5672},
+        {publisher, [
+            {interval, 25},
+            {size, 1}
+        ]}
+    ]},
+    {metrics, [
+        {interval, 5000},
+        {url, "http://localhost:9091/metrics/job/tuna/instance/local"},
+        {run_id, "local"}
+    ]},
+    {process_counts, [
+        {publishers, 3},
+        {classic_consumers, 5},
+        {quorum_consumers, 5}
+    ]}
+]}.
+```
+
+All app metrics include a `run_id` label. Connection lifecycle metrics are exposed as:
+- `tuna_amqp_connect_total{role="...",worker="...",target="conn",run_id="..."}`
+- `tuna_amqp_down_total{role="...",worker="...",target="conn|chan",run_id="..."}`
+
 ## TODO
 - Redesign publisher: split publisher and message generator processes 
